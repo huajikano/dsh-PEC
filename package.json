@@ -1,10 +1,15 @@
 {
   "name": "dsh-pec",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Phone gateway for DeepSeek Harness: pair a phone, control sessions, models, presets, approvals, workspace files, a command terminal and DSH settings remotely.",
-  "repository": { "type": "git", "url": "git+https://github.com/huajikano/dsh-PEC.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huajikano/dsh-PEC.git"
+  },
   "homepage": "https://github.com/huajikano/dsh-PEC#readme",
-  "bugs": { "url": "https://github.com/huajikano/dsh-PEC/issues" },
+  "bugs": {
+    "url": "https://github.com/huajikano/dsh-PEC/issues"
+  },
   "type": "module",
   "exports": {
     ".": "./index.js",
@@ -22,11 +27,15 @@
     "icon.svg"
   ],
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-settings"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
     }
   }
 }
