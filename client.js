@@ -163,11 +163,20 @@ window.__ModuleLoader__.load({
     function RecoveryCard() {
       const origin = (window.__CCDSH__ && window.__CCDSH__.origin) || 'http://127.0.0.1:7317'
       const [code, setCode] = React.useState('')
+      const [hasSet, setHasSet] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
+      const load = React.useCallback(async () => {
+        try {
+          const response = await fetch(origin + '/api/recovery', { credentials: 'omit' })
+          const data = await response.json()
+          setHasSet(Boolean(data.set))
+        } catch { /* keep last state */ }
+      }, [origin])
+      React.useEffect(() => { load() }, [load])
       const generate = async () => {
         setBusy(true)
         try {
-          const response = await fetch(origin + '/api/recovery', { credentials: 'omit' })
+          const response = await fetch(origin + '/api/recovery', { method: 'PUT', credentials: 'omit' })
           const data = await response.json()
           setCode(data.code || '')
         } finally { setBusy(false) }
@@ -184,9 +193,17 @@ window.__ModuleLoader__.load({
         code
           ? h('div', null, [
               h('div', { style: styles.code }, code),
-              h('div', { style: styles.dim }, '截图保存或抄下来。手机令牌丢失时，在配对页输入它即可免看电脑重新配对。此码使用一次后自动更换。'),
+              h('div', { style: styles.dim }, '截图保存或抄下来。手机令牌丢失时，在配对页输入它即可免看电脑重新配对。此码使用一次后自动更换，请保存新码。'),
               h('div', { style: styles.row, marginTop: 6 }, [
                 h('button', { style: styles.button, onClick: () => copy(code) }, '复制'),
+                h('button', { style: styles.button, onClick: clear }, '删除恢复码'),
+              ]),
+            ])
+          : hasSet
+          ? h('div', null, [
+              h('div', { style: styles.dim }, '已设置恢复码（出于安全不显示明文）。异地使用前请确认你保存过它；不确定就重新生成并覆盖。'),
+              h('div', { style: styles.row, marginTop: 6 }, [
+                h('button', { style: styles.button, disabled: busy, onClick: generate }, busy ? '生成中…' : '重新生成并显示新码'),
                 h('button', { style: styles.button, onClick: clear }, '删除恢复码'),
               ]),
             ])
