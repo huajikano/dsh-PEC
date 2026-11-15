@@ -476,7 +476,7 @@ function renderSessions() {
   // Replace, never append: this view re-renders on every keystroke and on the
   // 15s refresh, and appending stacked whole screens on top of each other.
   app.replaceChildren(
-    topbar('dsh-PEC', state.server?.name || '已连接', {
+    topbar('dsh-PEC', (tunnelActive(state.health) ? '☁ 异地入口开启 · ' : '') + (state.server?.name || '已连接'), {
       right: [
         el('button', { class: 'icon-btn', title: '刷新', onclick: () => boot() }, [svg(ICON.refresh)]),
       ],
@@ -487,6 +487,11 @@ function renderSessions() {
 }
 
 /** Shown only when the running DSH is missing something the plugin expects. */
+/** Whether a Cloudflare Tunnel entry is currently the active access path. */
+function tunnelActive(health) {
+  return Boolean(health && health.tunnel && health.tunnel.active)
+}
+
 function healthBanner(health) {
   const missing = (health.missing || []).slice(0, 4).join('、')
   return el('div', {

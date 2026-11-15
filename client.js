@@ -94,6 +94,72 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function TunnelCard() {
+      const origin = (window.__CCDSH__ && window.__CCDSH__.origin) || 'http://127.0.0.1:7317'
+      const [tunnel, setTunnel] = React.useState(null)
+      const [loadError, setLoadError] = React.useState('')
+      const [busy, setBusy] = React.useState('')
+      const [token, setToken] = React.useState('')
+      const [binary, setBinary] = React.useState('')
+      const [message, setMessage] = React.useState('')
+      const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: 8, border: '1px solid var(--dsh-border, #2a3550)', background: 'transparent', color: 'inherit', fontSize: 12 }
+      const load = React.useCallback(async () => {
+        try {
+          const response = await fetch(origin + '/api/tunnel', { credentials: 'omit' })
+          if (!response.ok) throw new Error('HTTP ' + response.status)
+          setTunnel(await response.json())
+          setLoadError('')
+        } catch (cause) {
+          setLoadError(String(cause && cause.message ? cause.message : cause))
+        }
+      }, [origin])
+      React.useEffect(() => { load() }, [load])
+      const act = async (action, extra) => {
+        setBusy(action)
+        setMessage('')
+        try {
+          const response = await fetch(origin + '/api/tunnel', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'omit',
+            body: JSON.stringify(Object.assign({ action }, extra || {})),
+          })
+          const data = await response.json()
+          if (!response.ok || (data.ok === false && data.error)) throw new Error(data.error || ('HTTP ' + response.status))
+          await load()
+          setMessage(action === 'install' ? '服务已安装并启动。' : data.status && data.status.running ? '隧道已开启，异地可通过域名访问。' : '隧道已关闭，仅局域网/内网可达。')
+        } catch (cause) {
+          setMessage('操作失败：' + String(cause && cause.message ? cause.message : cause))
+          load()
+        } finally {
+          setBusy('')
+        }
+      }
+      if (loadError && !tunnel) {
+        return h('div', { style: styles.card }, [
+          h('div', { style: styles.label }, 'Cloudflare 隧道（异地访问）'),
+          h('div', { style: styles.dim }, '状态读取失败（' + loadError + '）。未安装 cloudflared 服务时属正常，安装方法见 docs/tunnel.md。'),
+        ])
+      }
+      if (!tunnel) return null
+      return h('div', { style: styles.card }, [
+        h('div', { style: styles.label }, 'Cloudflare 隧道（异地访问）'),
+        !tunnel.available
+          ? h('div', null, [
+              h('div', { style: styles.dim }, '未检测到 cloudflared 服务。粘贴 Cloudflare 面板的安装 Token 与程序路径，一键安装为 Windows 服务：'),
+              h('input', { style: inputStyle, placeholder: '粘贴安装 Token（eyJ…）', value: token, onInput: (event) => setToken(event.target.value) }),
+              h('input', { style: Object.assign({}, inputStyle, { marginTop: 6 }), placeholder: 'cloudflared.exe 完整路径（如 C:\\Tools\\cloudflared\\cloudflared.exe）', value: binary, onInput: (event) => setBinary(event.target.value) }),
+              h('button', { style: Object.assign({}, styles.button, { marginTop: 8 }), disabled: busy === 'install' || !token || !binary, onClick: () => act('install', { token, binary }) }, busy === 'install' ? '安装中…' : '安装为 Windows 服务并启动'),
+            ])
+          : h('div', null, [
+              h('div', { style: styles.row, marginTop: 6 }, [
+                h('div', { style: styles.dim }, '状态：' + (tunnel.running ? '运行中（异地可通过域名访问）' : '已停止（仅局域网/内网可达）')),
+                h('button', { style: styles.button, disabled: Boolean(busy) || tunnel.busy, onClick: () => act(tunnel.running ? 'stop' : 'start') }, busy === 'start' || busy === 'stop' ? '处理中…' : tunnel.running ? '关闭隧道' : '开启隧道'),
+              ]),
+            ]),
+        message ? h('div', { style: styles.dim, marginTop: 6 }, message) : null,
+      ])
+    }
     function renderPanel() {
       const { status, error, reload } = useStatus()
       if (error) {
@@ -113,6 +179,7 @@ window.__ModuleLoader__.load({
       const code = status.pairing ? status.pairing.value : ''
 
       return h('div', { style: styles.wrap }, [
+        h(TunnelCard),
         status.health && !status.health.ok
           ? h('div', { style: styles.card }, [
               h('div', { style: styles.label }, '兼容性'),
