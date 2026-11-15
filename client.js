@@ -120,7 +120,8 @@ window.__ModuleLoader__.load({
         try {
           const response = await fetch(origin + '/api/tunnel', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            // text/plain = CORS-simple request, skips the preflight delay.
+            headers: { 'content-type': 'text/plain' },
             credentials: 'omit',
             body: JSON.stringify(Object.assign({ action }, extra || {})),
           })
@@ -177,7 +178,9 @@ window.__ModuleLoader__.load({
       const recoveryApi = async (action) => {
         const response = await fetch(origin + '/api/recovery', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          // text/plain keeps this a CORS-simple request: no preflight round-trip
+          // (the preflight was costing seconds from the DSH window's origin).
+          headers: { 'content-type': 'text/plain' },
           credentials: 'omit',
           body: JSON.stringify({ action }),
         })
