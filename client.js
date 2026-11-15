@@ -160,6 +160,42 @@ window.__ModuleLoader__.load({
         message ? h('div', { style: styles.dim, marginTop: 6 }, message) : null,
       ])
     }
+    function RecoveryCard() {
+      const origin = (window.__CCDSH__ && window.__CCDSH__.origin) || 'http://127.0.0.1:7317'
+      const [code, setCode] = React.useState('')
+      const [busy, setBusy] = React.useState(false)
+      const generate = async () => {
+        setBusy(true)
+        try {
+          const response = await fetch(origin + '/api/recovery', { credentials: 'omit' })
+          const data = await response.json()
+          setCode(data.code || '')
+        } finally { setBusy(false) }
+      }
+      const clear = async () => {
+        setBusy(true)
+        try {
+          await fetch(origin + '/api/recovery', { method: 'DELETE', credentials: 'omit' })
+          setCode('')
+        } finally { setBusy(false) }
+      }
+      return h('div', { style: styles.card }, [
+        h('div', { style: styles.label }, '恢复码（异地重新配对用）'),
+        code
+          ? h('div', null, [
+              h('div', { style: styles.code }, code),
+              h('div', { style: styles.dim }, '截图保存或抄下来。手机令牌丢失时，在配对页输入它即可免看电脑重新配对。此码使用一次后自动更换。'),
+              h('div', { style: styles.row, marginTop: 6 }, [
+                h('button', { style: styles.button, onClick: () => copy(code) }, '复制'),
+                h('button', { style: styles.button, onClick: clear }, '删除恢复码'),
+              ]),
+            ])
+          : h('div', null, [
+              h('div', { style: styles.dim }, '尚未设置。生成后截图保存——在异地手机令牌丢失时，凭它可重新配对，无需回到电脑前。'),
+              h('button', { style: Object.assign({}, styles.button, { marginTop: 8 }), disabled: busy, onClick: generate }, busy ? '生成中…' : '生成恢复码'),
+            ]),
+      ])
+    }
     function renderPanel() {
       const { status, error, reload } = useStatus()
       if (error) {
@@ -180,6 +216,7 @@ window.__ModuleLoader__.load({
 
       return h('div', { style: styles.wrap }, [
         h(TunnelCard),
+        h(RecoveryCard),
         status.health && !status.health.ok
           ? h('div', { style: styles.card }, [
               h('div', { style: styles.label }, '兼容性'),
