@@ -7,7 +7,9 @@
 
 1. **禁止用 PowerShell 直接写 JSON**：`Out-File` / `Set-Content` / `ConvertTo-Json` 的 UTF-8 输出带 BOM，会让 DSH 启动即崩（readProfileManifest 的 JSON.parse 撞 BOM）。改 `package.json` 等任何 JSON 用 node 写，或写完跑自检（见下）。
 
-2. **每次修改 `cordis.patch.yml` / `package.json` 后必须语义自检**——确认没有把真实插件禁用、没有孤立键：
+2. **改 `cordis.patch.yml` 时修改配置用「改原行」**：严禁对同一个键追加第二行（`disabled: true` 之类重复键会让 js-yaml 严格解析失败，应用无法启动）。本机已发生过一次：agent 两次追加到缓冲条目 → 重复键 → 应用死。
+
+3. **每次修改 `cordis.patch.yml` / `package.json` 后必须语义自检**——确认没有把真实插件禁用、没有孤立键：
 
    ```powershell
    node -e "const y=require('js-yaml');const d=y.load(require('fs').readFileSync(process.env.USERPROFILE+'/.dsh/profiles/desktop/cordis.patch.yml','utf8').replace(/!!js\S*/g,'!!str'));console.log(d.filter(e=>e&&e.disabled).map(e=>e.id))"
@@ -20,7 +22,9 @@
 4. **出问题的急救顺序**：
    a. 应用打不开 → 先跑 `node <仓库>/scripts/fix-bom.cjs`（清 BOM）
    b. 还不行 → 看 crash 日志 + 对照 `FIX_NOTES.md`
-   c. 检查 `cordis.patch.yml` 有没有孤立 `disabled: true` 或被禁用的核心插件（subagent / dsh-pec / dsh-context）
+   c. 检查 `cordis.patch.yml` 有没有孤立 `disabled: true` 或重复键/被禁用的核心插件（subagent / dsh-pec / dsh-context）
+
+6. **改文件前先备份**：`cordis.patch.yml.bak-before-fix-<时间戳>`、`package.json.bak-bom-<时间戳>`
 
 ## 本机已发生的事故记录
 
