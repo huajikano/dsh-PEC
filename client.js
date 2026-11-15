@@ -165,6 +165,7 @@ window.__ModuleLoader__.load({
       const [code, setCode] = React.useState('')
       const [hasSet, setHasSet] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
+      const [message, setMessage] = React.useState('')
       const load = React.useCallback(async () => {
         try {
           const response = await fetch(origin + '/api/recovery', { credentials: 'omit' })
@@ -173,24 +174,33 @@ window.__ModuleLoader__.load({
         } catch { /* keep last state */ }
       }, [origin])
       React.useEffect(() => { load() }, [load])
-      const generate = async () => {
-        setBusy(true)
-        setMessage('')
-        try {
-          const response = await fetch(origin + '/api/recovery', { method: 'PUT', credentials: 'omit' })
-          const data = await response.json()
+      const recoveryApi = async (action) => {
+        const response = await fetch(origin + '/api/recovery', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'omit',
+          body: JSON.stringify({ action }),
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status))
+        return data
+      }
+      const generate = async () => {
+        setBusy(true)
+        setMessage('')
+        try {
+          const data = await recoveryApi('generate')
           setCode(data.code || '')
-          if (data.set !== undefined) setHasSet(Boolean(data.set))
+          setHasSet(true)
         } catch (cause) {
           setMessage('操作失败：' + String(cause && cause.message ? cause.message : cause))
         } finally { setBusy(false) }
       }
-      const clear = async () => {
-        setBusy(true)
-        setMessage('')
+      const clear = async () => {
+        setBusy(true)
+        setMessage('')
         try {
-          const response = await fetch(origin + '/api/recovery', { method: 'DELETE', credentials: 'omit' })
-          if (!response.ok) throw new Error('HTTP ' + response.status)
+          await recoveryApi('clear')
           setCode('')
           setHasSet(false)
         } catch (cause) {
@@ -205,7 +215,7 @@ window.__ModuleLoader__.load({
               h('div', { style: styles.dim }, '截图保存或抄下来。手机令牌丢失时，在配对页输入它即可免看电脑重新配对。此码使用一次后自动更换，请保存新码。'),
               h('div', { style: styles.row, marginTop: 6 }, [
                 h('button', { style: styles.button, onClick: () => copy(code) }, '复制'),
-                h('button', { style: styles.button, onClick: clear }, '删除恢复码'),
+                h('button', { style: styles.button, disabled: busy, onClick: clear }, '删除恢复码'),
               ]),
             ])
           : hasSet
@@ -213,13 +223,14 @@ window.__ModuleLoader__.load({
               h('div', { style: styles.dim }, '已设置恢复码（出于安全不显示明文）。异地使用前请确认你保存过它；不确定就重新生成并覆盖。'),
               h('div', { style: styles.row, marginTop: 6 }, [
                 h('button', { style: styles.button, disabled: busy, onClick: generate }, busy ? '生成中…' : '重新生成并显示新码'),
-                h('button', { style: styles.button, onClick: clear }, '删除恢复码'),
+                h('button', { style: styles.button, disabled: busy, onClick: clear }, '删除恢复码'),
               ]),
             ])
           : h('div', null, [
               h('div', { style: styles.dim }, '尚未设置。生成后截图保存——在异地手机令牌丢失时，凭它可重新配对，无需回到电脑前。'),
               h('button', { style: Object.assign({}, styles.button, { marginTop: 8 }), disabled: busy, onClick: generate }, busy ? '生成中…' : '生成恢复码'),
             ]),
+        message ? h('div', { style: styles.dim, marginTop: 6 }, message) : null,
       ])
     }
     function renderPanel() {
