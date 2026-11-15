@@ -331,7 +331,8 @@ function deviceLabel() {
 }
 
 function renderPairing(message = '') {
-  const input = el('input', { placeholder: '123456', inputmode: 'numeric', maxlength: '6', autocomplete: 'off' })
+  let recoveryMode = false
+  const input = el('input', { placeholder: '123456', inputmode: 'numeric', autocomplete: 'off' })
   const error = el('div', { class: 'err', text: message })
   const submit = async () => {
     const code = input.value.trim()
@@ -344,7 +345,8 @@ function renderPairing(message = '') {
       const result = await api('/api/pair', {
         method: 'POST',
         body: {
-          code,
+          code: recoveryMode ? '' : code,
+          recoveryCode: recoveryMode ? input.value.trim() : '',
           name: deviceLabel(),
           platform: (() => {
             try {
@@ -362,19 +364,44 @@ function renderPairing(message = '') {
         // the page (first run, or after the PC revoked this phone).
         window.CCDSH?.saveConnection?.(result.token, result.server?.name || '')
       } catch {}
+      if (recoveryMode && result.recoveryCode) {
+        // Pairing via recovery code rotates it: the user must save the fresh
+        // code before leaving this page, or the next recovery is impossible.
+        error.classList.remove('err')
+        error.style.color = 'var(--dsw-success, #22c55e)'
+        error.textContent = '已重新配对。新的恢复码：' + result.recoveryCode + ' —— 请截图保存！'
+        submit.disabled = false
+        return
+      }
       location.reload()
     } catch (e) {
       error.textContent = e.message === 'code-invalid' ? '配对码不对，请在电脑上确认新码' : '配对失败：' + e.message
       submit.disabled = false
     }
   }
+  const label = el('label', { text: recoveryMode ? '恢复码' : '配对码（第一次可留空）' })
+  const toggleMode = el('button', {
+    class: 'btn ghost',
+    style: 'margin-top:4px',
+    text: recoveryMode ? '使用配对码连接' : '使用恢复码重新配对（令牌丢失时）',
+    onclick: () => {
+      recoveryMode = !recoveryMode
+      input.value = ''
+      input.setAttribute('maxlength', recoveryMode ? 23 : 6)
+      input.placeholder = recoveryMode ? '0000-0000-0000-0000' : '123456'
+      input.inputMode = recoveryMode ? 'text' : 'numeric'
+      toggleMode.textContent = recoveryMode ? '使用配对码连接' : '使用恢复码重新配对（令牌丢失时）'
+      label.textContent = recoveryMode ? '恢复码' : '配对码（第一次可留空）'
+    },
+  })
   app.replaceChildren(
     el('div', { class: 'pair' }, [
       el('div', { class: 'boot-logo', text: 'dsh-PEC' }),
       el('h1', { text: '配对你的电脑' }),
-      el('p', { text: '第一次配对不用输码：手机和电脑在同一个 Wi-Fi（或都连着 Tailscale）时，直接点“连接”。之后再加手机才需要电脑上显示的 6 位配对码。' }),
-      el('div', { class: 'field' }, [el('label', { text: '配对码（第一次可留空）' }), input]),
+      el('p', { text: recoveryMode ? '输入此前保存的恢复码，即可在令牌丢失时重新配对——无需回到电脑前。' : '第一次配对不用输码：手机和电脑在同一个 Wi-Fi（或都连着 Tailscale）时，直接点“连接”。之后再加手机才需要电脑上显示的 6 位配对码。' }),
+      el('div', { class: 'field' }, [label, input]),
       error,
+      toggleMode,
       el('button', { class: 'btn', onclick: submit }, '连接'),
       el('p', { class: 'small', text: '配对码在电脑 DSH 的“设置 → 手机连接”里，每 10 分钟自动更换。' }),
     ]),
