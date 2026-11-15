@@ -315,6 +315,10 @@ node scripts/fix-bom.cjs [profileDir]   # 不带参数默认 %DSH_HOME%\profiles
 
 ---
 
+## 附：本机 cordis.patch.yml 的缓冲条目（勿删）
+
+本机的 patch 末尾（`# <<< dsh-windows-mcp <<<` 结束标记之后）有一个 **`- id: cc-dsh`** 的 no-op 条目，带注释说明。它是给 **dsh-windows-mcp 0.2.10 的块写入器** 垫的缓冲：该写入器每次重写自己的标记块，都会在结束标记后追加一行孤立的 `disabled: true`（模板 bug），没有缓冲时这行会按 YAML 缩进并进上一个真实插件条目——曾把核心的 subagent 插件禁用，导致所有会话不可用。cc-dsh 已卸载，禁用它无任何影响。**维护 patch 时勿删这个条目**；改完 patch 跑一次结构自检（确认无孤立 disabled 行）。
+
 ## 附：回归 Tailscale
 
 装得了 Tailscale 的话，[tailscale.md](tailscale.md) 的方案始终更简单也更安全：两端进同一个虚拟私网、流量不过第三方、网关不出私网、不存在"公网谁都能敲一下"的问题。本方案只服务"手机端零安装 + 现成 HTTPS"这一个特定需求。
