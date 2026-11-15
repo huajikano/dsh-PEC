@@ -173,19 +173,28 @@ window.__ModuleLoader__.load({
         } catch { /* keep last state */ }
       }, [origin])
       React.useEffect(() => { load() }, [load])
-      const generate = async () => {
-        setBusy(true)
-        try {
+      const generate = async () => {
+        setBusy(true)
+        setMessage('')
+        try {
           const response = await fetch(origin + '/api/recovery', { method: 'PUT', credentials: 'omit' })
           const data = await response.json()
           setCode(data.code || '')
+          if (data.set !== undefined) setHasSet(Boolean(data.set))
+        } catch (cause) {
+          setMessage('操作失败：' + String(cause && cause.message ? cause.message : cause))
         } finally { setBusy(false) }
       }
-      const clear = async () => {
-        setBusy(true)
+      const clear = async () => {
+        setBusy(true)
+        setMessage('')
         try {
-          await fetch(origin + '/api/recovery', { method: 'DELETE', credentials: 'omit' })
+          const response = await fetch(origin + '/api/recovery', { method: 'DELETE', credentials: 'omit' })
+          if (!response.ok) throw new Error('HTTP ' + response.status)
           setCode('')
+          setHasSet(false)
+        } catch (cause) {
+          setMessage('操作失败：' + String(cause && cause.message ? cause.message : cause))
         } finally { setBusy(false) }
       }
       return h('div', { style: styles.card }, [
