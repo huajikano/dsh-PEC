@@ -335,9 +335,13 @@ function renderPairing(message = '') {
   const input = el('input', { placeholder: '123456', inputmode: 'numeric', autocomplete: 'off' })
   const error = el('div', { class: 'err', text: message })
   const submit = async () => {
-    const code = input.value.trim()
-    if (code && code.length !== 6) {
+    const code = recoveryMode ? '' : input.value.trim()
+    if (!recoveryMode && code && code.length !== 6) {
       error.textContent = '配对码是 6 位数字；第一次配对也可以留空直接连接。'
+      return
+    }
+    if (recoveryMode && input.value.trim().length < 12) {
+      error.textContent = '恢复码格式不对：应为 16 位数字（形如 1234-5678-9012-3456）。'
       return
     }
     submit.disabled = true
