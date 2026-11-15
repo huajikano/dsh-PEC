@@ -1,24 +1,23 @@
 # Update the locally installed dsh-pec plugin from a released tag.
 #
-#   pwsh ./scripts/sync-local.ps1 [-ProfileDir <dir>] [-Version v2.0.3] [-Reload]
+#   pwsh ./scripts/sync-local.ps1 [-ProfileDir <dir>] [-Version v2.0.5]
 #
 # What it does:
 #   1. Pins the profile dependency to the given tag (profile package.json).
 #   2. Runs pnpm update so node_modules picks up the released tarball.
-#   3. WITHOUT -Reload: prints which layers changed and how to activate them.
-#      WITH -Reload: attempts a plugin hot-reload by toggling the row twice
-#      through the gateway API. WARNING: if the gateway stops mid-cycle the
-#      toggle can leave the plugin fiber stuck; restarting DSH always fixes it.
+#   3. Prints activation guidance (web changes are live immediately; lib
+#      changes need a plugin toggle in DSH settings). The script never
+#      toggles the plugin itself - that mechanism once orphaned a disabled
+#      flag into another entry and took DSH down.
 #
 # Safe usage pattern:
 #   - web/* changes:   no reload needed at all (gateway serves from disk).
-#   - lib/* changes:   run with -Reload, or toggle the plugin in DSH settings.
+#   - lib/* changes:   toggle the plugin in DSH settings after running this.
 #
 param(
   [string]$ProfileDir = "$env:USERPROFILE\.dsh\profiles\desktop",
   [string]$Version = 'v2.0.3',
-  [int]$Port = 7317,
-  [switch]$Reload
+  [int]$Port = 7317
 )
 $ErrorActionPreference = 'Stop'
 
@@ -55,32 +54,34 @@ if (-not $Reload) {
   exit 0
 }
 
-Write-Host 'attempting hot reload (toggle off -> on)...'
-try {
-  Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/plugins/include%3Adsh-pec/toggle" -Method Post -Body '{"enabled":false}' -ContentType 'application/json' -TimeoutSec 3 | Out-Null
-} catch { Write-Host 'gateway closing (expected during disable)' }
-Start-Sleep -Seconds 3
+# Activation is manual by design: toggling the plugin through the gateway API
+# left a disabled flag in unpredictable places (once it orphaned into the
+# subagent row and took the whole DSH down). Keep it human-controlled.
+Write-Host ''
+Write-Host 'lib/* changes need a plugin reload - do it in DSH:'
+Write-Host '  Settings -> Plugins -> dsh-pec -> disable, then enable.'
+Write-Host 'If the gateway does not come back, restart DSH - that always fixes it.'
 
-# The disable stops the gateway, so "on" must go through the patch file:
-# removing the disabled flag is a semantic change that makes DSH remount the
-# plugin with the new files.
+# 4) Verify the profile patch file is structurally healthy after everything:
+#    every "disabled: true" line must sit directly under an id/name row of its
+#    own entry - an orphaned one merges into the previous entry in YAML and
+#    can disable something unrelated (this once disabled the core subagent
+#    plugin and took every session down).
 $patch = Join-Path $ProfileDir 'cordis.patch.yml'
 $lines = [System.IO.File]::ReadAllLines($patch)
-$out = @()
-for ($i = 0; $i -lt $lines.Count; $i++) {
-  $isFlag = $lines[$i] -match '^\s*disabled:\s*true\s*$' -and $i -gt 0 -and $lines[$i - 1] -match 'id: dsh-pec'
-  if (-not $isFlag) { $out += $lines[$i] }
+$orphans = @()
+for ($i = 1; $i -lt $lines.Count; $i++) {
+  if ($lines[$i] -match '^\s*disabled:\s*(true|false)\s*$') {
+    $prev = $lines[$i - 1]
+    $isOwnRow = $prev -match '^\s*(- id:|name:|enabled:|config:|disabled:|version:)'
+    if (-not $isOwnRow) { $orphans += ($i + 1) }
+  }
 }
-[System.IO.File]::WriteAllLines($patch, $out)
-Write-Host 'cleared disabled flag - DSH will hot-reload the plugin'
-
-# 4) Wait for the gateway and verify.
-for ($attempt = 1; $attempt -le 15; $attempt++) {
-  try {
-    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 3
-    Write-Host ("health: ok=" + $health.ok + " port=" + $health.port)
-    if ($health.ok) { Write-Host 'local DSH plugin updated.'; exit 0 }
-  } catch { Start-Sleep -Seconds 2 }
+if ($orphans.Count -gt 0) {
+  Write-Warning ("orphaned disabled lines detected in cordis.patch.yml at: " + ($orphans -join ', '))
+  Write-Warning 'an orphan merges into the previous YAML entry and can break DSH - fix manually.'
+  exit 1
 }
-Write-Warning 'gateway did not come back within 30s. Restart DSH - that always fixes a stuck plugin fiber.'
+Write-Host 'patch.yml structure OK.'
+exit 0
 exit 1
